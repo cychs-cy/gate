@@ -240,8 +240,32 @@ def test_build_nodes_text_caps_and_formats():
     text = vpngate.build_nodes_text(sample_data(), ["a.example.com:443"], cfg)
     lines = text.strip().splitlines()
     assert len(lines) == 2
-    assert lines[0].startswith("a.example.com:443#日本-住宅-01$sstp://vpn:vpn@a.opengw.net:443")
-    assert lines[1].startswith("a.example.com:443#日本-机房-01$sstp://vpn:vpn@c.opengw.net:443")
+    assert lines[0].startswith("a.example.com:443#日本-住宅IP-01$sstp://vpn:vpn@a.opengw.net:443")
+    assert lines[1].startswith("a.example.com:443#日本-机房IP-01$sstp://vpn:vpn@c.opengw.net:443")
+
+
+def test_build_nodes_text_numbers_each_country_and_kind_independently():
+    data = {"countries": {}}
+    for code in ("JP", "US"):
+        data["countries"][code] = {
+            "code": code,
+            "name": code,
+            "count": 6,
+            "nodes": [
+                {"host": f"{code.lower()}-{kind}-{index}.opengw.net", "port": 443, "residential": kind}
+                for kind in ("residential", "datacenter", "unknown")
+                for index in range(2)
+            ],
+        }
+    text = vpngate.build_nodes_text(data, ["edge.example.com:443"], make_config())
+    remarks = [line.split("#", 1)[1].split("$", 1)[0] for line in text.strip().splitlines()]
+    assert len(remarks) == 12
+    assert set(remarks) == {
+        f"{name}-{kind}-{index:02d}"
+        for name in ("日本", "美国")
+        for kind in ("住宅IP", "机房IP", "未知IP")
+        for index in (1, 2)
+    }
 
 
 def test_build_nodes_text_sanitizes_remark_and_dedupes_links():
@@ -256,6 +280,7 @@ def test_build_nodes_text_sanitizes_remark_and_dedupes_links():
     assert "#" in lines[0]
     remark = lines[0].split("#", 1)[1].split("$", 1)[0]
     assert "#" not in remark and "$" not in remark
+    assert remark == "BadNameX-未知IP-01"
 
 
 def test_build_nodes_text_requires_edge_pool():

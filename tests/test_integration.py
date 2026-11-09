@@ -125,7 +125,7 @@ def test_main_generates_all_artifacts(server, monkeypatch, tmp_path):
 
     nodes_text = (tmp_path / "public" / "nodes.txt").read_text(encoding="utf-8")
     assert nodes_text.strip() == (
-        "edge.example.com:443#日本-住宅-01$sstp://vpn:vpn@public-vpn-1.opengw.net:443"
+        "edge.example.com:443#日本-住宅IP-01$sstp://vpn:vpn@public-vpn-1.opengw.net:443"
     )
 
     html = (tmp_path / "public" / "index.html").read_text(encoding="utf-8")

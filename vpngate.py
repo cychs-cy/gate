@@ -852,7 +852,7 @@ def build_nodes_text(data: dict[str, Any], edge_hosts: list[str], cfg: Config) -
             seen_links.add(link)
             kind_key = node.get("residential") if node.get("residential") in counters else "unknown"
             counters[kind_key] += 1
-            kind = {"residential": "住宅", "datacenter": "机房", "unknown": "未知"}[kind_key]
+            kind = {"residential": "住宅IP", "datacenter": "机房IP", "unknown": "未知IP"}[kind_key]
             entry = edge_hosts[index % len(edge_hosts)]
             index += 1
             lines.append(f"{entry}#{sanitize_remark(f'{name}-{kind}-{counters[kind_key]:02d}')}${link}")

@@ -64,6 +64,67 @@ jobs:
           fi
           echo "检测域名已配置：${DOMAIN}"
 
+      - name: Load SUB entry addresses only
+        run: |
+          python - <<'PY'
+          import base64
+          import ipaddress
+          import os
+          from urllib.parse import parse_qs, urlsplit
+
+          import requests
+          import vpngate
+
+          placeholder = "00000000-0000-4000-8000-000000000000"
+
+          def entry_addresses(text):
+              endpoints = []
+              seen = set()
+              decoded = base64.b64decode("".join(text.split()), validate=True).decode("utf-8")
+              for line in decoded.splitlines():
+                  try:
+                      node = urlsplit(line.strip())
+                      if node.scheme != "vless" or node.username != placeholder:
+                          continue
+                      if parse_qs(node.query).get("host") != ["example.com"]:
+                          continue
+                      host = (node.hostname or "").rstrip(".")
+                      if not host or host == "localhost" or host.endswith(".localhost") or host.startswith("127."):
+                          continue
+                      try:
+                          address = ipaddress.ip_address(host)
+                      except ValueError:
+                          address = None
+                      mapped = getattr(address, "ipv4_mapped", None)
+                      if address and (address.is_loopback or address.is_unspecified or (mapped and mapped.is_loopback)):
+                          continue
+                      host_port = f"[{host}]:{node.port or 443}" if ":" in host else f"{host}:{node.port or 443}"
+                      endpoint = vpngate.normalize_endpoint(host_port)
+                      if endpoint and endpoint not in seen:
+                          seen.add(endpoint)
+                          endpoints.append(endpoint)
+                  except ValueError:
+                      continue
+              return endpoints
+
+          try:
+              response = requests.get(
+                  "https://google.sosorg.nyc.mn/sub",
+                  params={"host": "example.com", "uuid": placeholder},
+                  headers={"User-Agent": "v2rayN/gate-entry-pool"},
+                  timeout=25,
+              )
+              response.raise_for_status()
+              endpoints = entry_addresses(response.text)
+              if not endpoints:
+                  raise ValueError("no valid entry addresses")
+              with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+                  env_file.write("EDGE_HOSTS=" + ",".join(endpoints) + "\n")
+              print(f"Loaded {len(endpoints)} SUB entry addresses; upstream names ignored; landing names retained")
+          except Exception as exc:
+              print(f"::warning::SUB entry addresses unavailable ({type(exc).__name__}); using the built-in entry pool")
+          PY
+
       - name: Run pipeline
         env:
           CHECK_WORKER: "https://${{ secrets.DOMAIN }}/check?sstp=vpn:vpn@"
